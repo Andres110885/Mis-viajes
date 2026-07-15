@@ -1508,7 +1508,7 @@ function openCreateTripModal(existing) {
   const m = existing?.data?.meta || {};
   const destinationsStr = (m.destinations || []).join(', ');
   const html = `
-    <div class="modal-backdrop">
+    <div class="modal-backdrop" >
       <div class="modal">
         <div class="modal-header">
           <h3>${existing ? 'Editar viaje' : 'Nuevo viaje'}</h3>
@@ -1920,7 +1920,7 @@ function renderEventModal() {
   const ev = editingEvent;
   const isNew = !currentTrip.data.events.find(e => e.id === ev.id);
   const html = `
-    <div class="modal-backdrop">
+    <div class="modal-backdrop" >
       <div class="modal">
         <div class="modal-header">
           <h3>${isNew ? 'Añadir' : 'Editar'} evento</h3>
@@ -3738,7 +3738,7 @@ function renderChecklistBody() {
 function openChecklistModal() {
   ensureChecklist();
   const html = `
-    <div class="modal-backdrop">
+    <div class="modal-backdrop" >
       <div class="modal">
         <div class="modal-header">
           <h3>📋 Checklist — ${escapeHtml(currentTrip.data.meta.name)}</h3>
@@ -3882,4 +3882,3 @@ init();
 </script>
 </body>
 </html>
-                                                                                                                  
