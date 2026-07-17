@@ -1421,7 +1421,11 @@ function renderTripsList() {
       <div class="container">
         <div class="trips-header">
           <h2>Mis Viajes</h2>
-          <button class="btn btn-primary" onclick="openCreateTripModal()">+ Nuevo viaje</button>
+          <div style="display:flex;gap:8px">
+            <input type="file" id="import-file" accept="application/json" style="display:none" onchange="handleImportFile(event)">
+            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" title="Importar viajes desde archivo JSON">📥 Importar</button>
+            <button class="btn btn-primary" onclick="openCreateTripModal()">+ Nuevo viaje</button>
+          </div>
         </div>
         <div class="empty-state">
           <div class="icon">🧳</div>
