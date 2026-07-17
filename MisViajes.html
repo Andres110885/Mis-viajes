@@ -4292,7 +4292,11 @@ function renderActivityModal() {
           </div>
           <div class="field">
             <label>Link original (Instagram, blog, web...)</label>
-            <input type="url" id="act-link" placeholder="https://..." value="${escapeHtml(a.link || '')}">
+            <div style="display:flex;gap:6px">
+              <input type="url" id="act-link" placeholder="https://..." value="${escapeHtml(a.link || '')}" style="flex:1">
+              <button class="btn btn-secondary" style="padding:8px 12px;white-space:nowrap" onclick="reExtractLink()" title="Extraer título, foto y descripción del link">🔍 Extraer</button>
+            </div>
+            <div class="field-hint">Pulsa "Extraer" para intentar rellenar título, foto y descripción automáticamente desde el link.</div>
           </div>
           <div class="field">
             <label>Dirección (para Maps)</label>
@@ -4328,6 +4332,14 @@ function renderActivityModal() {
     </div>
   `;
   openModalHtml(html);
+}
+
+async function reExtractLink() {
+  const linkInput = document.getElementById('act-link');
+  const url = (linkInput.value || '').trim();
+  if (!url) { showToast('Pon una URL primero', 'error'); return; }
+  editingActivity.link = url;
+  await tryAutoFillFromLink(url);
 }
 
 async function handleActivityPhoto(e) {
@@ -4382,34 +4394,96 @@ async function submitActivity() {
   }
 }
 
-/* ===== Pegar URL desde portapapeles ===== */
+/* ===== Pegar URL desde portapapeles + auto-extract ===== */
 async function pasteActivityUrl() {
+  let text;
   try {
-    const text = await navigator.clipboard.readText();
-    if (!text || !text.startsWith('http')) {
-      showToast('El portapapeles no tiene una URL válida', 'error');
-      return;
-    }
-    editingActivity = {
-      title: '', description: '', province: '',
-      audience: activityFilters.audience || 'con-ninos',
-      photo: '', link: text, address: '', price: '', website: '',
-      duration: '', schedule: ''
-    };
-    renderActivityModal();
-    showToast('URL pegada. Rellena el título y provincia.');
+    text = await navigator.clipboard.readText();
   } catch (err) {
-    // Fallback: si no hay permiso de clipboard, pedir manualmente
-    const text = prompt('Pega la URL aquí:');
-    if (!text) return;
-    editingActivity = {
-      title: '', description: '', province: '',
-      audience: activityFilters.audience || 'con-ninos',
-      photo: '', link: text, address: '', price: '', website: '',
-      duration: '', schedule: ''
-    };
-    renderActivityModal();
+    text = prompt('Pega la URL aquí:');
   }
+  if (!text || !text.match(/^https?:\/\//)) {
+    showToast('No hay URL válida en el portapapeles', 'error');
+    return;
+  }
+  editingActivity = {
+    title: '', description: '', province: '',
+    audience: activityFilters.audience || 'con-ninos',
+    photo: '', link: text, address: '', price: '', website: '',
+    duration: '', schedule: ''
+  };
+  renderActivityModal();
+  // Intentar auto-extraer datos del link
+  await tryAutoFillFromLink(text);
+}
+
+/* ===== Auto-extract metadata via Microlink ===== */
+async function tryAutoFillFromLink(url) {
+  if (!url) return;
+  showToast('🔍 Extrayendo datos del link...');
+  try {
+    const apiUrl = 'https://api.microlink.io/?url=' + encodeURIComponent(url) + '&meta=true&audio=false&video=false';
+    const r = await fetch(apiUrl);
+    if (!r.ok) throw new Error('respuesta ' + r.status);
+    const json = await r.json();
+    if (json.status !== 'success' || !json.data) throw new Error('sin datos');
+    const d = json.data;
+    // Rellenar campos que estén vacíos
+    if (!editingActivity.title) {
+      let title = d.title || '';
+      // Instagram devuelve tipo "Andres López on Instagram: descripción..."
+      const igMatch = title.match(/on Instagram:\s*"?([^"]+)"?/i);
+      if (igMatch) title = igMatch[1].trim();
+      // Cortar si es muy largo
+      if (title.length > 80) title = title.substring(0, 77) + '...';
+      editingActivity.title = title;
+    }
+    if (!editingActivity.description) {
+      let desc = d.description || '';
+      if (desc.length > 400) desc = desc.substring(0, 397) + '...';
+      editingActivity.description = desc;
+    }
+    if (!editingActivity.website && d.publisher && d.url) {
+      // No pisar el link original con la URL del publisher
+    }
+    // Descargar imagen y convertir a base64 (si cabe)
+    if (!editingActivity.photo && d.image?.url) {
+      try {
+        const imgUrl = d.image.url;
+        // Fetch via microlink como proxy si CORS falla directo
+        const imgResp = await fetch(imgUrl);
+        if (imgResp.ok) {
+          const blob = await imgResp.blob();
+          if (blob.size < 800 * 1024) {
+            const base64 = await blobToBase64(blob);
+            editingActivity.photo = 'data:' + (blob.type || 'image/jpeg') + ';base64,' + base64;
+          } else {
+            console.log('Imagen muy grande:', blob.size);
+          }
+        }
+      } catch (imgErr) {
+        console.warn('No pude descargar imagen:', imgErr);
+      }
+    }
+    renderActivityModal();
+    showToast('✅ Datos extraídos. Revisa y añade la provincia.');
+  } catch (err) {
+    console.warn('Auto-extract falló:', err);
+    showToast('No se pudieron extraer datos automáticos. Rellena los campos manualmente.', 'error');
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = reader.result;
+      const comma = s.indexOf(',');
+      resolve(s.substring(comma + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }
 
 /* CHECKLIST */
@@ -4610,6 +4684,8 @@ async function init() {
           renderActivityModal();
           // Limpiar la URL para no reabrir el modal al recargar
           window.history.replaceState({}, '', location.pathname);
+          // Auto-extraer datos
+          await tryAutoFillFromLink(incomingUrl);
         } else {
           currentTab = 'viajes';
           document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'viajes'));
