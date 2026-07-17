@@ -1311,6 +1311,23 @@
     color: var(--text-light);
     line-height: 1.4;
   }
+  .act-link-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-size: 12px;
+    text-decoration: none;
+    margin-left: 6px;
+    vertical-align: middle;
+    transition: all 0.15s;
+  }
+  .act-link-badge:hover { background: var(--primary); color: white; }
+
   .act-actions {
     opacity: 0;
     transition: opacity 0.15s;
@@ -4217,11 +4234,15 @@ function renderActivityRow(a) {
   if (a.province) meta.push(`📍 ${escapeHtml(a.province)}`);
   if (a.duration) meta.push(`⏱️ ${escapeHtml(a.duration)}`);
   if (a.price) meta.push(`💰 ${escapeHtml(a.price)}`);
+  const linkIcon = a.link ? (a.link.includes('instagram') ? '📸' : (a.link.includes('tiktok') ? '🎵' : '🔗')) : '';
+  const linkBadge = a.link
+    ? `<a href="${escapeHtml(a.link)}" target="_blank" rel="noopener" class="act-link-badge" onclick="event.stopPropagation()" title="Abrir link original">${linkIcon}</a>`
+    : '';
   return `
     <div class="act-row" onclick="openActivityModal('${a.id}')">
       ${photo}
       <div class="act-body">
-        <div class="act-title">${escapeHtml(a.title || 'Sin título')}</div>
+        <div class="act-title">${escapeHtml(a.title || 'Sin título')}${linkBadge}</div>
         <div class="act-meta">${meta.join(' · ')}</div>
         ${a.description ? `<div class="act-desc">${escapeHtml(a.description.substring(0, 120))}${a.description.length > 120 ? '…' : ''}</div>` : ''}
       </div>
@@ -4294,9 +4315,10 @@ function renderActivityModal() {
             <label>Link original (Instagram, blog, web...)</label>
             <div style="display:flex;gap:6px">
               <input type="url" id="act-link" placeholder="https://..." value="${escapeHtml(a.link || '')}" style="flex:1">
+              <button class="btn btn-secondary" style="padding:8px 12px;white-space:nowrap" onclick="openLinkFromInput()" title="Abrir el link en pestaña nueva">↗️ Abrir</button>
               <button class="btn btn-secondary" style="padding:8px 12px;white-space:nowrap" onclick="reExtractLink()" title="Extraer título, foto y descripción del link">🔍 Extraer</button>
             </div>
-            <div class="field-hint">Pulsa "Extraer" para intentar rellenar título, foto y descripción automáticamente desde el link.</div>
+            <div class="field-hint">Pulsa "Extraer" para rellenar título, foto y descripción desde el link. "Abrir" para verlo en el navegador.</div>
           </div>
           <div class="field">
             <label>Dirección (para Maps)</label>
@@ -4332,6 +4354,12 @@ function renderActivityModal() {
     </div>
   `;
   openModalHtml(html);
+}
+
+function openLinkFromInput() {
+  const url = (document.getElementById('act-link').value || '').trim();
+  if (!url) { showToast('Pon una URL primero', 'error'); return; }
+  window.open(url, '_blank', 'noopener');
 }
 
 async function reExtractLink() {
