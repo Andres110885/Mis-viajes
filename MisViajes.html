@@ -1437,7 +1437,11 @@ function renderTripsList() {
     <div class="container">
       <div class="trips-header">
         <h2>Mis Viajes</h2>
-        <button class="btn btn-primary" onclick="openCreateTripModal()">+ Nuevo viaje</button>
+        <div style="display:flex;gap:8px">
+          <input type="file" id="import-file" accept="application/json" style="display:none" onchange="handleImportFile(event)">
+          <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" title="Importar viajes desde archivo JSON">📥 Importar</button>
+          <button class="btn btn-primary" onclick="openCreateTripModal()">+ Nuevo viaje</button>
+        </div>
       </div>
       <div class="trips-grid">
         ${allTrips.map((t, idx) => renderTripCard(t, idx)).join('')}
@@ -3639,6 +3643,71 @@ async function exportExpensesPDF() {
 }
 
 function escapeHtmlText(s) { return String(s || ''); }
+
+/* IMPORTAR VIAJES DESDE JSON */
+async function handleImportFile(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!currentUser) { showToast('Debes iniciar sesión primero', 'error'); return; }
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data.trips || !Array.isArray(data.trips)) throw new Error('El archivo no tiene el formato esperado (falta "trips")');
+    
+    const nTrips = data.trips.length;
+    const nAtts = (data.attachments || []).length;
+    if (!confirm(`¿Importar ${nTrips} viaje(s) y ${nAtts} adjunto(s) a tu cuenta?`)) {
+      e.target.value = '';
+      return;
+    }
+    
+    showToast('Importando... esto puede tardar un momento');
+    const { setDoc, doc, db, serverTimestamp } = window.FB;
+    
+    // 1) Subir attachments
+    let attachDone = 0;
+    for (const a of (data.attachments || [])) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.uid, 'attachments', a.attId), {
+          name: a.name,
+          mime: a.mime || 'application/octet-stream',
+          size: a.size || 0,
+          data: a.data,
+          _created: serverTimestamp()
+        });
+        attachDone++;
+      } catch (err) {
+        console.error('Error subiendo adjunto', a.name, err);
+      }
+    }
+    
+    // 2) Subir trips
+    let tripDone = 0;
+    for (const t of data.trips) {
+      try {
+        const id = t.meta?.id || ('trip-' + Date.now() + '-' + Math.random().toString(36).slice(2,7));
+        await setDoc(doc(db, 'users', currentUser.uid, 'trips', id), {
+          meta: { ...t.meta, id },
+          events: t.events || [],
+          _created: serverTimestamp()
+        });
+        tripDone++;
+      } catch (err) {
+        console.error('Error subiendo viaje', t.meta?.name, err);
+      }
+    }
+    
+    showToast(`Importado: ${tripDone}/${nTrips} viajes, ${attachDone}/${nAtts} adjuntos`, 'success');
+    e.target.value = '';
+    
+    // Recargar
+    await loadTrips();
+    renderTripsList();
+  } catch (err) {
+    console.error(err);
+    showToast('Error importando: ' + err.message, 'error');
+  }
+}
 
 /* CHECKLIST */
 const DEFAULT_CHECKLIST = [
