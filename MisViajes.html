@@ -1351,6 +1351,7 @@
 
 <div class="tabs-bar" id="tabs-bar" style="display:none">
   <button class="tab-btn active" data-tab="viajes" onclick="switchTab('viajes')"><span>✈️</span> Viajes</button>
+  <button class="tab-btn" data-tab="planes" onclick="switchTab('planes')"><span>📅</span> Planes</button>
   <button class="tab-btn" data-tab="actividades" onclick="switchTab('actividades')"><span>🎯</span> Actividades</button>
 </div>
 
@@ -1419,7 +1420,7 @@ function tripDocRef(id) {
 }
 
 async function loadTrips() {
-  const { getDocs } = window.FB;
+  const { getDocs, setDoc } = window.FB;
   const snap = await getDocs(tripsCollection());
   allTrips = [];
   snap.forEach(d => allTrips.push({ id: d.id, data: d.data() }));
@@ -1428,6 +1429,23 @@ async function loadTrips() {
     const db = b.data.meta?.startDate || '';
     return db.localeCompare(da);
   });
+  // Auto-migración: si algún trip no tiene tripType, deducirlo del nombre
+  for (const t of allTrips) {
+    if (!t.data.meta.tripType) {
+      const nm = (t.data.meta.name || '').toLowerCase();
+      let guessed = null;
+      if (nm.includes('fin de semana') || nm.includes('finde')) guessed = 'findesemana';
+      else if (nm.includes('semana') || nm.includes('vacaciones')) guessed = 'semana';
+      else if (nm.includes('escapada')) guessed = 'escapada';
+      if (guessed) {
+        t.data.meta.tripType = guessed;
+        try {
+          await setDoc(tripDocRef(t.id), t.data);
+          console.log('[auto-migrate] tripType asignado:', t.data.meta.name, '→', guessed);
+        } catch (err) { console.warn('No pude auto-migrar', t.id, err); }
+      }
+    }
+  }
 }
 
 async function saveCurrentTrip() {
@@ -1545,12 +1563,7 @@ function computeEndTime(startTime, durationStr) {
   return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
 }
 const PROVINCIAS_ES = [
-  'Álava','Albacete','Alicante','Almería','Asturias','Ávila','Badajoz','Barcelona','Burgos','Cáceres',
-  'Cádiz','Cantabria','Castellón','Ciudad Real','Córdoba','A Coruña','Cuenca','Girona','Granada',
-  'Guadalajara','Gipuzkoa','Huelva','Huesca','Islas Baleares','Jaén','León','Lleida','La Rioja','Lugo',
-  'Madrid','Málaga','Murcia','Navarra','Ourense','Palencia','Las Palmas','Pontevedra','Salamanca',
-  'Santa Cruz de Tenerife','Segovia','Sevilla','Soria','Tarragona','Teruel','Toledo','Valencia',
-  'Valladolid','Bizkaia','Zamora','Zaragoza','Ceuta','Melilla'
+  'Barcelona', 'Tarragona', 'Girona', 'Lleida'
 ];
 
 const TRIP_TYPE_META = {
@@ -1587,6 +1600,7 @@ function navigateToList() {
   if (currentTab === 'actividades') {
     renderActivitiesList();
   } else {
+    // viajes o planes → renderTripsList filtra internamente
     renderTripsList();
   }
 }
@@ -1660,22 +1674,35 @@ async function doAuth(mode) {
 function renderTripsList() {
   updateFolderInfo();
   const app = document.getElementById('app');
-  if (allTrips.length === 0) {
+  // Filtrar según tab actual
+  const isPlansTab = currentTab === 'planes';
+  const visibleTrips = allTrips.filter(t => {
+    const isPlan = (t.data.meta?.tripType || 'viaje') !== 'viaje';
+    return isPlansTab ? isPlan : !isPlan;
+  });
+  // Ajustar renderTripCard para que use el índice correcto del original allTrips
+  const tabTitle = isPlansTab ? '📅 Mis Planes' : '✈️ Mis Viajes';
+  const tabEmoji = isPlansTab ? '📅' : '🧳';
+  const tabEmptyH = isPlansTab ? 'Aún no tienes planes' : 'Aún no tienes viajes';
+  const tabEmptyP = isPlansTab ? 'Crea tu primer plan (semana, fin de semana, escapada) para empezar.' : 'Crea tu primer viaje para empezar a organizarlo.';
+  const tabNewBtn = isPlansTab ? '+ Nuevo plan' : '+ Nuevo viaje';
+  
+  if (visibleTrips.length === 0) {
     app.innerHTML = `
       <div class="container">
         <div class="trips-header">
-          <h2>Mis Viajes</h2>
+          <h2>${tabTitle}</h2>
           <div style="display:flex;gap:8px">
-            <input type="file" id="import-file" accept="application/json" style="display:none" onchange="handleImportFile(event)">
-            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" title="Importar viajes desde archivo JSON">📥 Importar</button>
-            <button class="btn btn-primary" onclick="openCreateTripModal()">+ Nuevo viaje</button>
+            ${!isPlansTab ? `<input type="file" id="import-file" accept="application/json" style="display:none" onchange="handleImportFile(event)">
+            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" title="Importar viajes desde archivo JSON">📥 Importar</button>` : ''}
+            <button class="btn btn-primary" onclick="openCreateTripModal()">${tabNewBtn}</button>
           </div>
         </div>
         <div class="empty-state">
-          <div class="icon">🧳</div>
-          <h3>Aún no tienes viajes</h3>
-          <p>Crea tu primer viaje para empezar a organizarlo.</p>
-          <button class="btn btn-primary" style="margin-top:14px" onclick="openCreateTripModal()">Crear primer viaje</button>
+          <div class="icon">${tabEmoji}</div>
+          <h3>${tabEmptyH}</h3>
+          <p>${tabEmptyP}</p>
+          <button class="btn btn-primary" style="margin-top:14px" onclick="openCreateTripModal()">${tabNewBtn}</button>
         </div>
       </div>
     `;
@@ -1684,15 +1711,15 @@ function renderTripsList() {
   app.innerHTML = `
     <div class="container">
       <div class="trips-header">
-        <h2>Mis Viajes</h2>
+        <h2>${tabTitle}</h2>
         <div style="display:flex;gap:8px">
-          <input type="file" id="import-file" accept="application/json" style="display:none" onchange="handleImportFile(event)">
-          <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" title="Importar viajes desde archivo JSON">📥 Importar</button>
-          <button class="btn btn-primary" onclick="openCreateTripModal()">+ Nuevo viaje</button>
+          ${!isPlansTab ? `<input type="file" id="import-file" accept="application/json" style="display:none" onchange="handleImportFile(event)">
+          <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" title="Importar viajes desde archivo JSON">📥 Importar</button>` : ''}
+          <button class="btn btn-primary" onclick="openCreateTripModal()">${tabNewBtn}</button>
         </div>
       </div>
       <div class="trips-grid">
-        ${allTrips.map((t, idx) => renderTripCard(t, idx)).join('')}
+        ${visibleTrips.map(t => renderTripCard(t, allTrips.indexOf(t))).join('')}
       </div>
     </div>
   `;
@@ -1729,16 +1756,16 @@ function openCreateTripModal(existing) {
     <div class="modal-backdrop" >
       <div class="modal">
         <div class="modal-header">
-          <h3>${existing ? 'Editar viaje' : 'Nuevo viaje'}</h3>
+          <h3>${existing ? (currentTab === 'planes' || (existing.data?.meta?.tripType && existing.data.meta.tripType !== 'viaje') ? 'Editar plan' : 'Editar viaje') : (currentTab === 'planes' ? 'Nuevo plan' : 'Nuevo viaje')}</h3>
           <button class="modal-close" onclick="closeModal()">×</button>
         </div>
         <div class="modal-body">
           <div class="field">
             <label>Tipo</label>
             <div class="type-picker">
-              ${['viaje','semana','findesemana','escapada'].map(t => `
-                <label class="type-opt ${(m.tripType || 'viaje') === t ? 'active' : ''}">
-                  <input type="radio" name="trip-type" value="${t}" ${(m.tripType || 'viaje') === t ? 'checked' : ''} onchange="document.querySelectorAll('.type-opt').forEach(el => el.classList.toggle('active', el.querySelector('input').checked))">
+              ${(currentTab === 'planes' ? ['semana','findesemana','escapada'] : ['viaje','semana','findesemana','escapada']).map(t => `
+                <label class="type-opt ${(m.tripType || (currentTab === 'planes' ? 'semana' : 'viaje')) === t ? 'active' : ''}">
+                  <input type="radio" name="trip-type" value="${t}" ${(m.tripType || (currentTab === 'planes' ? 'semana' : 'viaje')) === t ? 'checked' : ''} onchange="document.querySelectorAll('.type-opt').forEach(el => el.classList.toggle('active', el.querySelector('input').checked))">
                   <span class="type-emoji">${TRIP_TYPE_META[t].emoji}</span>
                   <span>${TRIP_TYPE_META[t].label}</span>
                 </label>
@@ -1747,7 +1774,7 @@ function openCreateTripModal(existing) {
           </div>
           <div class="field">
             <label>Nombre</label>
-            <input id="trip-name" placeholder="Ej: Japón 2026 / Semana con niños" value="${escapeHtml(m.name || '')}">
+            <input id="trip-name" placeholder="${currentTab === 'planes' ? 'Ej: Semana con niños 27 julio' : 'Ej: Japón 2026'}" value="${escapeHtml(m.name || '')}">
           </div>
           <div class="field-row">
             <div class="field">
@@ -4094,7 +4121,7 @@ async function deleteActivity(id) {
 async function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  if (tab === 'viajes') {
+  if (tab === 'viajes' || tab === 'planes') {
     currentTrip = null;
     try { await loadTrips(); renderTripsList(); } catch (err) { console.error(err); }
   } else {
