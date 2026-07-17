@@ -83,6 +83,46 @@
   button { font-family: inherit; cursor: pointer; }
   input, select, textarea { font-family: inherit; font-size: 15px; }
 
+  /* ===== Type picker (Viaje/Semana/etc.) ===== */
+  .type-picker {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .type-opt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 6px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-soft);
+    transition: all 0.15s;
+    background: white;
+  }
+  .type-opt input { display: none; }
+  .type-opt:hover { border-color: var(--text-soft); }
+  .type-opt.active {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .type-emoji { font-size: 22px; }
+  @media (max-width: 500px) {
+    .type-picker { grid-template-columns: repeat(2, 1fr); }
+  }
+  .trip-type-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
   /* ===== Tabs Viajes / Actividades ===== */
   .tabs-bar {
     background: white;
@@ -241,12 +281,8 @@
     transform: translateY(-2px);
     border-color: #cbd5e1;
   }
-  .trip-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--vuelo), var(--hospedaje), var(--actividad));
+  .trip-card {
+    border-top: 4px solid var(--primary);
   }
   .trip-card h3 {
     margin: 8px 0 8px;
@@ -1517,6 +1553,13 @@ const PROVINCIAS_ES = [
   'Valladolid','Bizkaia','Zamora','Zaragoza','Ceuta','Melilla'
 ];
 
+const TRIP_TYPE_META = {
+  viaje:       { emoji: '✈️', label: 'Viaje',           color: '#2563eb' },
+  semana:      { emoji: '📅', label: 'Semana',          color: '#8b5cf6' },
+  findesemana: { emoji: '🎒', label: 'Fin de semana',   color: '#f59e0b' },
+  escapada:    { emoji: '🏞️', label: 'Escapada',        color: '#10b981' }
+};
+
 function escapeHtml(s) {
   if (s == null) return '';
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1659,8 +1702,10 @@ function renderTripCard(tripEntry, idx) {
   const m = tripEntry.data.meta;
   const eventsCount = tripEntry.data.events?.length || 0;
   const dests = (m.destinations || []).slice(0, 4);
+  const tt = TRIP_TYPE_META[m.tripType || 'viaje'] || TRIP_TYPE_META.viaje;
   return `
-    <div class="trip-card" onclick="openTrip(allTrips[${idx}])">
+    <div class="trip-card" onclick="openTrip(allTrips[${idx}])" style="border-top-color:${tt.color}">
+      <div class="trip-type-badge" style="background:${tt.color}20;color:${tt.color}">${tt.emoji} ${tt.label}</div>
       <h3>${escapeHtml(m.name)}</h3>
       <div class="dates">${escapeHtml(formatDateRange(m.startDate, m.endDate))}</div>
       <div class="destinations">
@@ -1689,8 +1734,20 @@ function openCreateTripModal(existing) {
         </div>
         <div class="modal-body">
           <div class="field">
-            <label>Nombre del viaje</label>
-            <input id="trip-name" placeholder="Ej: Japón 2026" value="${escapeHtml(m.name || '')}">
+            <label>Tipo</label>
+            <div class="type-picker">
+              ${['viaje','semana','findesemana','escapada'].map(t => `
+                <label class="type-opt ${(m.tripType || 'viaje') === t ? 'active' : ''}">
+                  <input type="radio" name="trip-type" value="${t}" ${(m.tripType || 'viaje') === t ? 'checked' : ''} onchange="document.querySelectorAll('.type-opt').forEach(el => el.classList.toggle('active', el.querySelector('input').checked))">
+                  <span class="type-emoji">${TRIP_TYPE_META[t].emoji}</span>
+                  <span>${TRIP_TYPE_META[t].label}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+          <div class="field">
+            <label>Nombre</label>
+            <input id="trip-name" placeholder="Ej: Japón 2026 / Semana con niños" value="${escapeHtml(m.name || '')}">
           </div>
           <div class="field-row">
             <div class="field">
@@ -1728,9 +1785,10 @@ async function submitNewTrip() {
   const endDate = document.getElementById('trip-end').value;
   const destinations = document.getElementById('trip-destinations').value.split(',').map(s => s.trim()).filter(Boolean);
   const notes = document.getElementById('trip-notes').value.trim();
+  const tripType = (document.querySelector('input[name="trip-type"]:checked') || {}).value || 'viaje';
   if (!name) { showToast('Pon un nombre al viaje', 'error'); return; }
   if (startDate && endDate && startDate > endDate) { showToast('La fecha fin no puede ser anterior al inicio', 'error'); return; }
-  const newTrip = await createTrip({ name, startDate, endDate, destinations, notes });
+  const newTrip = await createTrip({ name, tripType, startDate, endDate, destinations, notes });
   await loadTrips();
   closeModal();
   showToast('Viaje creado');
@@ -1745,6 +1803,7 @@ async function submitEditTrip() {
   m.endDate = document.getElementById('trip-end').value;
   m.destinations = document.getElementById('trip-destinations').value.split(',').map(s => s.trim()).filter(Boolean);
   m.notes = document.getElementById('trip-notes').value.trim();
+  m.tripType = (document.querySelector('input[name="trip-type"]:checked') || {}).value || m.tripType || 'viaje';
   await saveCurrentTrip();
   closeModal();
   renderTripDetail();
