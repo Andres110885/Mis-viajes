@@ -83,6 +83,38 @@
   button { font-family: inherit; cursor: pointer; }
   input, select, textarea { font-family: inherit; font-size: 15px; }
 
+  /* ===== Tabs Viajes / Actividades ===== */
+  .tabs-bar {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 4px;
+    padding: 0 20px;
+    position: sticky;
+    top: 60px;
+    z-index: 40;
+  }
+  .tab-btn {
+    background: transparent;
+    border: 0;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-soft);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--bg); }
+  .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
   /* ===== Layout ===== */
   .topbar {
     background: white;
@@ -1101,6 +1133,154 @@
   }
   .check-add button:hover { background: #c7d6f8; }
 
+  /* ===== Selector de actividades para viaje ===== */
+  .act-picker-row {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    align-items: center;
+    margin-bottom: 4px;
+    border: 1px solid var(--border);
+  }
+  .act-picker-row:hover {
+    background: var(--primary-soft);
+    border-color: var(--primary);
+  }
+  .act-picker-photo {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  /* ===== Actividades ===== */
+  .audience-toggle {
+    display: inline-flex;
+    background: var(--bg);
+    padding: 4px;
+    border-radius: 10px;
+    gap: 3px;
+    margin-bottom: 16px;
+  }
+  .aud-btn {
+    border: 0;
+    background: transparent;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-soft);
+    border-radius: 7px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s;
+  }
+  .aud-btn:hover { color: var(--text); }
+  .aud-btn.active {
+    background: white;
+    color: var(--primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .aud-count {
+    background: var(--bg);
+    color: var(--text-soft);
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 700;
+  }
+  .aud-btn.active .aud-count {
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .filters-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .filter-select {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: white;
+    font-size: 14px;
+    min-width: 200px;
+  }
+  .filter-search {
+    flex: 1;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    min-width: 200px;
+  }
+  .activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .act-row {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    align-items: flex-start;
+  }
+  .act-row:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow);
+  }
+  .act-photo {
+    width: 70px;
+    height: 70px;
+    border-radius: 10px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .act-photo-empty {
+    background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: 700;
+  }
+  .act-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .act-title {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+  .act-meta {
+    font-size: 13px;
+    color: var(--text-soft);
+    margin-bottom: 4px;
+  }
+  .act-desc {
+    font-size: 13px;
+    color: var(--text-light);
+    line-height: 1.4;
+  }
+  .act-actions {
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .act-row:hover .act-actions { opacity: 1; }
+
   /* ===== Responsive ===== */
   @media (max-width: 900px) {
     .calendar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
@@ -1133,6 +1313,11 @@
   </div>
 </div>
 
+<div class="tabs-bar" id="tabs-bar" style="display:none">
+  <button class="tab-btn active" data-tab="viajes" onclick="switchTab('viajes')"><span>✈️</span> Viajes</button>
+  <button class="tab-btn" data-tab="actividades" onclick="switchTab('actividades')"><span>🎯</span> Actividades</button>
+</div>
+
 <div id="app"></div>
 
 <script>
@@ -1144,6 +1329,9 @@ let currentTrip = null;   // Trip abierto {id, data}
 let allTrips = [];        // Lista de trips (para la home)
 let tripsUnsubscribe = null;
 let currentTripUnsubscribe = null;
+let currentTab = 'viajes';  // 'viajes' | 'actividades'
+let allActivities = [];    // Lista de actividades
+let activityFilters = { audience: 'con-ninos', province: 'all', search: '' };
 
 /* =====================================================
    AUTENTICACIÓN FIREBASE
@@ -1320,6 +1508,15 @@ function computeEndTime(startTime, durationStr) {
   const total = (hh * 60 + mm + minutes) % (24 * 60);
   return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
 }
+const PROVINCIAS_ES = [
+  'Álava','Albacete','Alicante','Almería','Asturias','Ávila','Badajoz','Barcelona','Burgos','Cáceres',
+  'Cádiz','Cantabria','Castellón','Ciudad Real','Córdoba','A Coruña','Cuenca','Girona','Granada',
+  'Guadalajara','Gipuzkoa','Huelva','Huesca','Islas Baleares','Jaén','León','Lleida','La Rioja','Lugo',
+  'Madrid','Málaga','Murcia','Navarra','Ourense','Palencia','Las Palmas','Pontevedra','Salamanca',
+  'Santa Cruz de Tenerife','Segovia','Sevilla','Soria','Tarragona','Teruel','Toledo','Valencia',
+  'Valladolid','Bizkaia','Zamora','Zaragoza','Ceuta','Melilla'
+];
+
 function escapeHtml(s) {
   if (s == null) return '';
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1344,7 +1541,11 @@ function addDays(start, n) {
    ===================================================== */
 function navigateToList() {
   currentTrip = null;
-  renderTripsList();
+  if (currentTab === 'actividades') {
+    renderActivitiesList();
+  } else {
+    renderTripsList();
+  }
 }
 async function openTrip(tripEntry) {
   currentTrip = { id: tripEntry.id, data: tripEntry.data };
@@ -1618,6 +1819,7 @@ function renderTripDetail() {
             <button onclick="openEventModal('hospedaje'); closeAddMenu()"><span class="emoji">🏨</span> Hospedaje</button>
             <button onclick="openEventModal('actividad'); closeAddMenu()"><span class="emoji">🎟️</span> Actividad</button>
             <button onclick="openEventModal('restaurante'); closeAddMenu()"><span class="emoji">🍽️</span> Restaurante / Nota</button>
+            <button onclick="openAddFromSavedActivities(); closeAddMenu()" style="border-top:1px solid var(--border)"><span class="emoji">📌</span> Desde actividades guardadas</button>
           </div>
         </div>
       </div>
@@ -3491,6 +3693,76 @@ function closeModalOnBackdrop(e) {
   if (e.target.classList.contains('modal-backdrop')) closeModal();
 }
 
+/* AÑADIR EVENTO DESDE ACTIVIDAD GUARDADA */
+async function openAddFromSavedActivities() {
+  // Cargar actividades si no están cargadas
+  if (!allActivities.length) {
+    try { await loadActivities(); } catch (_) {}
+  }
+  if (!allActivities.length) {
+    showToast('No tienes actividades guardadas todavía. Añádelas en la pestaña "Actividades".', 'error');
+    return;
+  }
+  // Sugerir actividades cuya provincia esté en las destinos del viaje
+  const dests = (currentTrip.data.meta.destinations || []).map(d => d.trim().toLowerCase());
+  const suggested = allActivities.filter(a => dests.some(d => (a.province || '').toLowerCase().includes(d) || d.includes((a.province || '').toLowerCase())));
+  const others = allActivities.filter(a => !suggested.includes(a));
+  
+  const renderRow = (a) => `
+    <div class="act-picker-row" onclick="addActivityToTrip('${a.id}')">
+      ${a.photo ? `<img src="${a.photo}" class="act-picker-photo">` : `<div class="act-picker-photo act-photo-empty">${escapeHtml((a.title||'?')[0].toUpperCase())}</div>`}
+      <div>
+        <div style="font-weight:600">${escapeHtml(a.title||'')}</div>
+        <div style="font-size:12px;color:var(--text-soft)">${escapeHtml(a.province||'')} · ${a.audience==='con-ninos'?'👨‍👩‍👧':'🍷'}${a.duration?' · ⏱️ ' + escapeHtml(a.duration):''}${a.price?' · 💰 ' + escapeHtml(a.price):''}</div>
+      </div>
+    </div>
+  `;
+  
+  openModalHtml(`
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>📌 Añadir desde actividades guardadas</h3>
+          <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <p style="color:var(--text-soft);font-size:13px;margin:0 0 12px">Pulsa una actividad para añadirla al viaje.</p>
+          ${suggested.length ? `
+            <div style="font-size:12px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px">Sugeridas por provincia (${suggested.length})</div>
+            ${suggested.map(renderRow).join('')}
+          ` : ''}
+          ${others.length ? `
+            <div style="font-size:12px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 6px">Otras actividades (${others.length})</div>
+            ${others.map(renderRow).join('')}
+          ` : ''}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+async function addActivityToTrip(activityId) {
+  const act = allActivities.find(a => a.id === activityId);
+  if (!act) return;
+  closeModal();
+  // Crear un evento nuevo tipo 'actividad' con los datos de la actividad guardada
+  editingEvent = {
+    ...newEventTemplate('actividad'),
+    title: act.title || '',
+    date: '',
+    address: act.address || '',
+    price: act.price || '',
+    currency: 'EUR',
+    duration: act.duration || '',
+    notes: [act.description, act.link ? 'Link: ' + act.link : '', act.website ? 'Web: ' + act.website : ''].filter(Boolean).join('\n\n'),
+    web: act.website || act.link || ''
+  };
+  renderEventModal();
+}
+
 /* SWITCH DE MODO DE HORARIO EN ACTIVIDAD */
 function switchTimeMode(mode) {
   document.querySelectorAll('.mode-tab').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
@@ -3713,6 +3985,347 @@ async function handleImportFile(e) {
   }
 }
 
+/* =====================================================
+   ACTIVIDADES: CRUD + navegación + render
+   ===================================================== */
+function activitiesCollection() {
+  const { db, collection } = window.FB;
+  return collection(db, 'users', currentUser.uid, 'activities');
+}
+function activityDocRef(id) {
+  const { db, doc } = window.FB;
+  return doc(db, 'users', currentUser.uid, 'activities', id);
+}
+
+async function loadActivities() {
+  const { getDocs } = window.FB;
+  const snap = await getDocs(activitiesCollection());
+  allActivities = [];
+  snap.forEach(d => allActivities.push({ id: d.id, ...d.data() }));
+  allActivities.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+}
+
+async function createActivity(data) {
+  const { setDoc, serverTimestamp } = window.FB;
+  const id = 'act-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+  const activity = {
+    ...data,
+    id,
+    createdAt: new Date().toISOString(),
+    _created: serverTimestamp()
+  };
+  await setDoc(activityDocRef(id), activity);
+  return { id, ...activity };
+}
+
+async function updateActivity(id, data) {
+  const { setDoc, serverTimestamp } = window.FB;
+  await setDoc(activityDocRef(id), { ...data, _updated: serverTimestamp() });
+}
+
+async function deleteActivity(id) {
+  if (!confirm('¿Eliminar esta actividad?')) return;
+  const { deleteDoc } = window.FB;
+  await deleteDoc(activityDocRef(id));
+  await loadActivities();
+  renderActivitiesList();
+  showToast('Actividad eliminada');
+}
+
+async function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  if (tab === 'viajes') {
+    currentTrip = null;
+    try { await loadTrips(); renderTripsList(); } catch (err) { console.error(err); }
+  } else {
+    try { await loadActivities(); renderActivitiesList(); } catch (err) {
+      console.error(err);
+      showToast('Error cargando actividades: ' + err.message, 'error');
+    }
+  }
+}
+
+/* ===== Vista de actividades ===== */
+function renderActivitiesList() {
+  const app = document.getElementById('app');
+  const audience = activityFilters.audience;
+  const province = activityFilters.province;
+  const search = (activityFilters.search || '').toLowerCase().trim();
+  
+  // Filtrar
+  let filtered = allActivities.filter(a => (a.audience || 'con-ninos') === audience);
+  if (province !== 'all') filtered = filtered.filter(a => a.province === province);
+  if (search) filtered = filtered.filter(a =>
+    (a.title || '').toLowerCase().includes(search) ||
+    (a.description || '').toLowerCase().includes(search)
+  );
+  
+  const provincesInList = [...new Set(allActivities.filter(a => (a.audience || 'con-ninos') === audience).map(a => a.province).filter(Boolean))].sort();
+  
+  app.innerHTML = `
+    <div class="container">
+      <div class="trips-header">
+        <h2>🎯 Actividades</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="pasteActivityUrl()" title="Pegar URL del portapapeles">📎 Pegar URL</button>
+          <button class="btn btn-primary" onclick="openActivityModal()">+ Nueva actividad</button>
+        </div>
+      </div>
+      
+      <div class="audience-toggle">
+        <button class="aud-btn ${audience==='con-ninos'?'active':''}" onclick="setAudienceFilter('con-ninos')">
+          👨‍👩‍👧 Con niños <span class="aud-count">${allActivities.filter(a=>(a.audience||'con-ninos')==='con-ninos').length}</span>
+        </button>
+        <button class="aud-btn ${audience==='sin-ninos'?'active':''}" onclick="setAudienceFilter('sin-ninos')">
+          🍷 Sin niños <span class="aud-count">${allActivities.filter(a=>a.audience==='sin-ninos').length}</span>
+        </button>
+      </div>
+      
+      <div class="filters-bar">
+        <select class="filter-select" onchange="setProvinceFilter(this.value)">
+          <option value="all">📍 Todas las provincias</option>
+          ${provincesInList.map(prov => `<option value="${escapeHtml(prov)}" ${prov===province?'selected':''}>${escapeHtml(prov)}</option>`).join('')}
+        </select>
+        <input type="text" class="filter-search" placeholder="🔍 Buscar por nombre..." value="${escapeHtml(activityFilters.search)}" oninput="setSearchFilter(this.value)">
+      </div>
+      
+      ${filtered.length === 0 ? `
+        <div class="empty-state">
+          <div class="icon">🎯</div>
+          <h3>${allActivities.length === 0 ? 'Aún no tienes actividades' : 'Sin resultados'}</h3>
+          <p>${allActivities.length === 0 ? 'Añade tu primera actividad para empezar a organizarlas.' : 'Cambia los filtros o el buscador.'}</p>
+          ${allActivities.length === 0 ? `<button class="btn btn-primary" style="margin-top:14px" onclick="openActivityModal()">Añadir actividad</button>` : ''}
+        </div>
+      ` : `
+        <div class="activity-list">
+          ${filtered.map(a => renderActivityRow(a)).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function setAudienceFilter(aud) {
+  activityFilters.audience = aud;
+  renderActivitiesList();
+}
+function setProvinceFilter(prov) {
+  activityFilters.province = prov;
+  renderActivitiesList();
+}
+let searchTimer;
+function setSearchFilter(s) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    activityFilters.search = s;
+    renderActivitiesList();
+  }, 200);
+}
+
+function renderActivityRow(a) {
+  const photo = a.photo
+    ? `<img src="${a.photo}" alt="" class="act-photo">`
+    : `<div class="act-photo act-photo-empty">${escapeHtml((a.title || '?')[0].toUpperCase())}</div>`;
+  const meta = [];
+  if (a.province) meta.push(`📍 ${escapeHtml(a.province)}`);
+  if (a.duration) meta.push(`⏱️ ${escapeHtml(a.duration)}`);
+  if (a.price) meta.push(`💰 ${escapeHtml(a.price)}`);
+  return `
+    <div class="act-row" onclick="openActivityModal('${a.id}')">
+      ${photo}
+      <div class="act-body">
+        <div class="act-title">${escapeHtml(a.title || 'Sin título')}</div>
+        <div class="act-meta">${meta.join(' · ')}</div>
+        ${a.description ? `<div class="act-desc">${escapeHtml(a.description.substring(0, 120))}${a.description.length > 120 ? '…' : ''}</div>` : ''}
+      </div>
+      <div class="act-actions">
+        <button class="btn-ghost" title="Eliminar" onclick="event.stopPropagation(); deleteActivity('${a.id}')">🗑️</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ===== Modal actividad ===== */
+let editingActivity = null;
+
+async function openActivityModal(id) {
+  if (id) {
+    editingActivity = allActivities.find(a => a.id === id);
+    if (!editingActivity) return;
+  } else {
+    editingActivity = {
+      title: '', description: '', province: '',
+      audience: activityFilters.audience || 'con-ninos',
+      photo: '', link: '', address: '', price: '', website: '',
+      duration: '', schedule: ''
+    };
+  }
+  renderActivityModal();
+}
+
+function renderActivityModal() {
+  const a = editingActivity;
+  const isNew = !a.id;
+  const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>${isNew ? 'Nueva actividad' : 'Editar actividad'}</h3>
+          <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="field">
+            <label>Título *</label>
+            <input id="act-title" placeholder="Cosmocaixa Barcelona" value="${escapeHtml(a.title || '')}">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Provincia *</label>
+              <select id="act-province">
+                <option value="">-- Elige --</option>
+                ${PROVINCIAS_ES.map(p => `<option value="${p}" ${a.province===p?'selected':''}>${p}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label>Público</label>
+              <select id="act-audience">
+                <option value="con-ninos" ${a.audience==='con-ninos'?'selected':''}>👨‍👩‍👧 Con niños</option>
+                <option value="sin-ninos" ${a.audience==='sin-ninos'?'selected':''}>🍷 Sin niños</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Foto (opcional, desde el móvil o galería)</label>
+            <input type="file" id="act-photo-input" accept="image/*" onchange="handleActivityPhoto(event)">
+            ${a.photo ? `<div style="margin-top:8px"><img src="${a.photo}" style="max-width:200px;max-height:150px;border-radius:8px;display:block"><button class="btn-ghost" style="margin-top:4px" onclick="clearActivityPhoto()">Quitar foto</button></div>` : ''}
+          </div>
+          <div class="field">
+            <label>Descripción</label>
+            <textarea id="act-description" rows="3" placeholder="De qué va la actividad...">${escapeHtml(a.description || '')}</textarea>
+          </div>
+          <div class="field">
+            <label>Link original (Instagram, blog, web...)</label>
+            <input type="url" id="act-link" placeholder="https://..." value="${escapeHtml(a.link || '')}">
+          </div>
+          <div class="field">
+            <label>Dirección (para Maps)</label>
+            <input id="act-address" placeholder="Calle X, número, ciudad" value="${escapeHtml(a.address || '')}">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Precio</label>
+              <input id="act-price" placeholder="12€ / Gratis / Donativo" value="${escapeHtml(a.price || '')}">
+            </div>
+            <div class="field">
+              <label>Duración</label>
+              <input id="act-duration" placeholder="2h / Medio día" value="${escapeHtml(a.duration || '')}">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Web oficial</label>
+              <input type="url" id="act-website" placeholder="https://..." value="${escapeHtml(a.website || '')}">
+            </div>
+            <div class="field">
+              <label>Horario</label>
+              <input id="act-schedule" placeholder="Sab-Dom 10-18h" value="${escapeHtml(a.schedule || '')}">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          ${!isNew ? `<button class="btn btn-danger" style="margin-right:auto" onclick="deleteActivity('${a.id}'); closeModal()">Eliminar</button>` : ''}
+          <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" onclick="submitActivity()">${isNew ? 'Guardar' : 'Actualizar'}</button>
+        </div>
+      </div>
+    </div>
+  `;
+  openModalHtml(html);
+}
+
+async function handleActivityPhoto(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const MAX = 800 * 1024; // 800 KB
+  if (file.size > MAX) {
+    showToast(`La foto es muy grande (${formatBytes(file.size)}). Máximo 800 KB. Prueba con menos calidad.`, 'error');
+    e.target.value = '';
+    return;
+  }
+  const b64 = await fileToBase64(file);
+  editingActivity.photo = 'data:' + (file.type || 'image/jpeg') + ';base64,' + b64;
+  renderActivityModal();
+}
+
+function clearActivityPhoto() {
+  editingActivity.photo = '';
+  renderActivityModal();
+}
+
+async function submitActivity() {
+  const a = editingActivity;
+  a.title = document.getElementById('act-title').value.trim();
+  a.province = document.getElementById('act-province').value;
+  a.audience = document.getElementById('act-audience').value;
+  a.description = document.getElementById('act-description').value.trim();
+  a.link = document.getElementById('act-link').value.trim();
+  a.address = document.getElementById('act-address').value.trim();
+  a.price = document.getElementById('act-price').value.trim();
+  a.duration = document.getElementById('act-duration').value.trim();
+  a.website = document.getElementById('act-website').value.trim();
+  a.schedule = document.getElementById('act-schedule').value.trim();
+  
+  if (!a.title) { showToast('Pon un título', 'error'); return; }
+  if (!a.province) { showToast('Elige una provincia', 'error'); return; }
+  
+  try {
+    if (a.id) {
+      await updateActivity(a.id, a);
+      showToast('Actividad actualizada');
+    } else {
+      await createActivity(a);
+      showToast('Actividad guardada');
+    }
+    closeModal();
+    await loadActivities();
+    renderActivitiesList();
+  } catch (err) {
+    console.error(err);
+    showToast('Error guardando: ' + err.message, 'error');
+  }
+}
+
+/* ===== Pegar URL desde portapapeles ===== */
+async function pasteActivityUrl() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text || !text.startsWith('http')) {
+      showToast('El portapapeles no tiene una URL válida', 'error');
+      return;
+    }
+    editingActivity = {
+      title: '', description: '', province: '',
+      audience: activityFilters.audience || 'con-ninos',
+      photo: '', link: text, address: '', price: '', website: '',
+      duration: '', schedule: ''
+    };
+    renderActivityModal();
+    showToast('URL pegada. Rellena el título y provincia.');
+  } catch (err) {
+    // Fallback: si no hay permiso de clipboard, pedir manualmente
+    const text = prompt('Pega la URL aquí:');
+    if (!text) return;
+    editingActivity = {
+      title: '', description: '', province: '',
+      audience: activityFilters.audience || 'con-ninos',
+      photo: '', link: text, address: '', price: '', website: '',
+      duration: '', schedule: ''
+    };
+    renderActivityModal();
+  }
+}
+
 /* CHECKLIST */
 const DEFAULT_CHECKLIST = [
   { name: 'Documentación', items: ['DNI / Pasaporte', 'Carnet de conducir', 'Seguro de viaje'] },
@@ -3889,17 +4502,42 @@ async function init() {
   onAuthStateChanged(window.FB.auth, async (user) => {
     currentUser = user;
     updateFolderInfo();
+    const tabsBar = document.getElementById('tabs-bar');
     if (user) {
+      if (tabsBar) tabsBar.style.display = '';
       try {
         await loadTrips();
-        renderTripsList();
+        try { await loadActivities(); } catch(_) { allActivities = []; }
+        // Si viene ?url=... por el Shortcut de iOS, abrir directamente el modal de actividad
+        const params = new URLSearchParams(location.search);
+        const incomingUrl = params.get('url') || params.get('u');
+        if (incomingUrl) {
+          currentTab = 'actividades';
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'actividades'));
+          renderActivitiesList();
+          editingActivity = {
+            title: '', description: '', province: '',
+            audience: 'con-ninos',
+            photo: '', link: incomingUrl, address: '', price: '', website: '',
+            duration: '', schedule: ''
+          };
+          renderActivityModal();
+          // Limpiar la URL para no reabrir el modal al recargar
+          window.history.replaceState({}, '', location.pathname);
+        } else {
+          currentTab = 'viajes';
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'viajes'));
+          renderTripsList();
+        }
       } catch (err) {
-        console.error('Error cargando viajes:', err);
-        showToast('Error cargando viajes: ' + err.message, 'error');
+        console.error('Error cargando datos:', err);
+        showToast('Error: ' + err.message, 'error');
       }
     } else {
+      if (tabsBar) tabsBar.style.display = 'none';
       currentTrip = null;
       allTrips = [];
+      allActivities = [];
       renderWelcome();
     }
   });
