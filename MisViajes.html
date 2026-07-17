@@ -11,6 +11,31 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
+  import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCcSIzatMAsFgIXtRnbOUuFxdlqrMO-FQ0",
+    authDomain: "misviajes-bfbfa.firebaseapp.com",
+    projectId: "misviajes-bfbfa",
+    storageBucket: "misviajes-bfbfa.firebasestorage.app",
+    messagingSenderId: "620790392331",
+    appId: "1:620790392331:web:616d9f09b2b96d0129090e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  window.FB = {
+    db, auth,
+    collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, addDoc, serverTimestamp,
+    onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail
+  };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
 <style>
   :root {
     --bg: #f6f8fb;
@@ -1114,141 +1139,66 @@
 /* =====================================================
    ESTADO GLOBAL
    ===================================================== */
-let rootHandle = null;       // FileSystemDirectoryHandle for MisViajes
-let currentTrip = null;       // Currently opened trip {meta, events, folderHandle}
-let allTrips = [];            // List of trips at the home screen
+let currentUser = null;   // Firebase User (o null si no auth)
+let currentTrip = null;   // Trip abierto {id, data}
+let allTrips = [];        // Lista de trips (para la home)
+let tripsUnsubscribe = null;
+let currentTripUnsubscribe = null;
 
 /* =====================================================
-   PERSISTENCIA DEL HANDLE (IndexedDB)
+   AUTENTICACIÓN FIREBASE
    ===================================================== */
-function idbGet(key) {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open('misviajes-app', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('handles');
-    req.onsuccess = () => {
-      const tx = req.result.transaction('handles', 'readonly');
-      const r = tx.objectStore('handles').get(key);
-      r.onsuccess = () => resolve(r.result);
-      r.onerror = () => reject(r.error);
-    };
-    req.onerror = () => reject(req.error);
-  });
+async function fbSignIn(email, password) {
+  const { auth, signInWithEmailAndPassword } = window.FB;
+  return signInWithEmailAndPassword(auth, email, password);
 }
-function idbSet(key, value) {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open('misviajes-app', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('handles');
-    req.onsuccess = () => {
-      const tx = req.result.transaction('handles', 'readwrite');
-      tx.objectStore('handles').put(value, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    };
-    req.onerror = () => reject(req.error);
-  });
+async function fbSignUp(email, password) {
+  const { auth, createUserWithEmailAndPassword } = window.FB;
+  return createUserWithEmailAndPassword(auth, email, password);
 }
-
-async function queryPermissionSilent(handle) {
-  const opts = { mode: 'readwrite' };
-  try {
-    return (await handle.queryPermission(opts)) === 'granted';
-  } catch (_) { return false; }
+async function fbSignOut() {
+  const { auth, signOut } = window.FB;
+  if (tripsUnsubscribe) { tripsUnsubscribe(); tripsUnsubscribe = null; }
+  if (currentTripUnsubscribe) { currentTripUnsubscribe(); currentTripUnsubscribe = null; }
+  currentTrip = null;
+  allTrips = [];
+  await signOut(auth);
 }
-async function ensurePermission(handle) {
-  const opts = { mode: 'readwrite' };
-  try {
-    if ((await handle.queryPermission(opts)) === 'granted') return true;
-    if ((await handle.requestPermission(opts)) === 'granted') return true;
-  } catch (_) {}
-  return false;
-}
-
-/* =====================================================
-   CARGAR / SELECCIONAR CARPETA RAÍZ
-   ===================================================== */
-async function pickFolder() {
-  try {
-    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    await idbSet('root', handle);
-    rootHandle = handle;
-    await loadTrips();
-    renderTripsList();
-    updateFolderInfo();
-  } catch (e) {
-    if (e.name !== 'AbortError') showToast('No se pudo abrir la carpeta', 'error');
-  }
-}
-
-async function reselectFolder() {
-  await pickFolder();
-}
-
-async function tryRestoreFolder() {
-  try {
-    const handle = await idbGet('root');
-    if (!handle) return false;
-    // Primero intentamos sin diálogo: si ya está concedido, cargamos directamente
-    if (await queryPermissionSilent(handle)) {
-      rootHandle = handle;
-      await loadTrips();
-      return true;
-    }
-    // Hay handle pero el navegador requiere confirmación del usuario.
-    // Devolvemos false para que renderice una pantalla "Continuar" en lugar de la bienvenida.
-    pendingHandle = handle;
-    return false;
-  } catch (err) {
-    console.error('tryRestoreFolder falló:', err);
-    try { await idbSet('root', null); } catch (_) {}
-    rootHandle = null;
-    pendingHandle = null;
-    return false;
-  }
-}
-
-let pendingHandle = null;
-async function continueWithPendingHandle() {
-  if (!pendingHandle) return;
-  const ok = await ensurePermission(pendingHandle);
-  if (ok) {
-    rootHandle = pendingHandle;
-    pendingHandle = null;
-    await loadTrips();
-    renderTripsList();
-    updateFolderInfo();
-  } else {
-    showToast('No se pudo obtener acceso a la carpeta', 'error');
-  }
+async function fbResetPassword(email) {
+  const { auth, sendPasswordResetEmail } = window.FB;
+  return sendPasswordResetEmail(auth, email);
 }
 
 function updateFolderInfo() {
-  const info = document.getElementById('folder-path');
-  const btn = document.getElementById('folder-btn');
-  if (rootHandle) {
-    info.textContent = '📁 ' + rootHandle.name;
-    btn.style.display = '';
+  const info = document.getElementById('user-email');
+  const btn = document.getElementById('signout-btn');
+  if (!info) return;
+  if (currentUser) {
+    info.textContent = '👤 ' + currentUser.email;
+    if (btn) btn.style.display = '';
   } else {
     info.textContent = '';
-    btn.style.display = 'none';
+    if (btn) btn.style.display = 'none';
   }
 }
 
 /* =====================================================
-   ENTRADA / SALIDA DE VIAJES
+   ENTRADA / SALIDA DE VIAJES (Firestore)
    ===================================================== */
+function tripsCollection() {
+  const { db, collection } = window.FB;
+  return collection(db, 'users', currentUser.uid, 'trips');
+}
+function tripDocRef(id) {
+  const { db, doc } = window.FB;
+  return doc(db, 'users', currentUser.uid, 'trips', id);
+}
+
 async function loadTrips() {
+  const { getDocs } = window.FB;
+  const snap = await getDocs(tripsCollection());
   allTrips = [];
-  for await (const entry of rootHandle.values()) {
-    if (entry.kind !== 'directory') continue;
-    try {
-      const fileHandle = await entry.getFileHandle('viaje.json');
-      const file = await fileHandle.getFile();
-      const data = JSON.parse(await file.text());
-      allTrips.push({ folder: entry, data });
-    } catch (_e) {
-      // No es una carpeta de viaje válida, ignorar
-    }
-  }
+  snap.forEach(d => allTrips.push({ id: d.id, data: d.data() }));
   allTrips.sort((a, b) => {
     const da = a.data.meta?.startDate || '';
     const db = b.data.meta?.startDate || '';
@@ -1257,32 +1207,11 @@ async function loadTrips() {
 }
 
 async function saveCurrentTrip() {
-  if (!currentTrip) return;
-  const json = JSON.stringify(currentTrip.data, null, 2);
-
-  async function attemptWrite(deleteFirst) {
-    if (deleteFirst) {
-      try { await currentTrip.folder.removeEntry('viaje.json'); } catch (_e) {}
-    }
-    const fileHandle = await currentTrip.folder.getFileHandle('viaje.json', { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(json);
-    await writable.close();
-    // Verificar leyendo de vuelta
-    const verifyFile = await fileHandle.getFile();
-    const verifyText = await verifyFile.text();
-    return verifyText.length === json.length;
-  }
-
+  if (!currentTrip || !currentUser) return;
   try {
-    let ok = await attemptWrite(false);
-    if (!ok) {
-      // Retry borrando primero (a veces Dropbox/sync se queda con la versión vieja)
-      ok = await attemptWrite(true);
-    }
-    if (!ok) {
-      throw new Error('Guardado fallido tras 2 intentos');
-    }
+    const { setDoc, serverTimestamp } = window.FB;
+    const data = { ...currentTrip.data, _updated: serverTimestamp() };
+    await setDoc(tripDocRef(currentTrip.id), data);
     return true;
   } catch (err) {
     console.error('saveCurrentTrip:', err);
@@ -1300,36 +1229,40 @@ function slugify(s) {
 }
 
 async function createTrip(meta) {
-  const folderName = slugify(meta.name) || ('viaje-' + Date.now());
-  let finalName = folderName;
-  let i = 2;
-  // Si ya existe, añadir un sufijo
-  while (true) {
-    try {
-      await rootHandle.getDirectoryHandle(finalName);
-      finalName = folderName + '-' + i;
-      i++;
-    } catch (e) { break; }
-  }
-  const tripFolder = await rootHandle.getDirectoryHandle(finalName, { create: true });
-  await tripFolder.getDirectoryHandle('adjuntos', { create: true });
+  const { setDoc, serverTimestamp } = window.FB;
+  const id = 'trip-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
   const data = {
-    meta: { ...meta, id: 'trip-' + Date.now(), createdAt: new Date().toISOString() },
-    events: []
+    meta: { ...meta, id, createdAt: new Date().toISOString() },
+    events: [],
+    _created: serverTimestamp()
   };
-  const fileHandle = await tripFolder.getFileHandle('viaje.json', { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(JSON.stringify(data, null, 2));
-  await writable.close();
-  return { folder: tripFolder, data };
+  await setDoc(tripDocRef(id), data);
+  return { id, data };
 }
 
 async function deleteTrip(tripEntry) {
-  if (!confirm(`¿Eliminar el viaje "${tripEntry.data.meta.name}"? Esto borrará la carpeta completa con sus adjuntos.`)) return;
-  await rootHandle.removeEntry(tripEntry.folder.name, { recursive: true });
-  await loadTrips();
-  renderTripsList();
-  showToast('Viaje eliminado');
+  if (!confirm(`¿Eliminar el viaje "${tripEntry.data.meta.name}"? Se borrará junto con sus adjuntos.`)) return;
+  const { deleteDoc, doc, db } = window.FB;
+  try {
+    // Borrar todos los adjuntos (documentos en /attachments)
+    const events = tripEntry.data.events || [];
+    for (const ev of events) {
+      if (ev.attachments?.length) {
+        for (const a of ev.attachments) {
+          if (a.attId) {
+            try { await deleteDoc(doc(db, 'users', currentUser.uid, 'attachments', a.attId)); } catch(_){}
+          }
+        }
+      }
+    }
+    await deleteDoc(tripDocRef(tripEntry.id));
+    await loadTrips();
+    renderTripsList();
+    showToast('Viaje eliminado');
+  } catch (err) {
+    console.error(err);
+    showToast('Error eliminando: ' + err.message, 'error');
+  }
 }
 
 /* =====================================================
@@ -1414,7 +1347,7 @@ function navigateToList() {
   renderTripsList();
 }
 async function openTrip(tripEntry) {
-  currentTrip = { folder: tripEntry.folder, data: tripEntry.data };
+  currentTrip = { id: tripEntry.id, data: tripEntry.data };
   renderTripDetail();
 }
 
@@ -1426,24 +1359,55 @@ function renderWelcome() {
     <div class="welcome">
       <div class="icon">🌍</div>
       <h2>Bienvenido a Mis Viajes</h2>
-      <p>Para empezar, dame acceso a tu carpeta de viajes. Cada viaje se guardará como una subcarpeta con su propio archivo de datos y adjuntos.</p>
-      <button class="btn btn-primary" onclick="pickFolder()">Seleccionar carpeta de viajes</button>
-      <p style="font-size: 12px; margin-top: 24px; color: var(--text-light);">La app funcionará mejor en Chrome, Edge o Brave.</p>
+      <p>Inicia sesión con tu email para acceder a tus viajes desde cualquier dispositivo.</p>
+      <div id="auth-form" style="text-align:left;max-width:340px;margin:20px auto 0">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="auth-email" placeholder="tu@email.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input type="password" id="auth-password" placeholder="mínimo 6 caracteres" autocomplete="current-password">
+        </div>
+        <div id="auth-error" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+        <button class="btn btn-primary" style="width:100%" onclick="doAuth('signin')">Iniciar sesión</button>
+        <div style="text-align:center;margin-top:14px;font-size:13px;color:var(--text-soft)">
+          ¿Primera vez? <a onclick="doAuth('signup')" style="color:var(--primary);cursor:pointer;text-decoration:underline">Crear cuenta</a>
+          &nbsp;·&nbsp;
+          <a onclick="doAuth('reset')" style="color:var(--text-soft);cursor:pointer;text-decoration:underline">Recuperar contraseña</a>
+        </div>
+      </div>
     </div>
   `;
 }
 
-function renderContinuePrompt() {
-  const name = pendingHandle && pendingHandle.name ? pendingHandle.name : 'tu carpeta de viajes';
-  document.getElementById('app').innerHTML = `
-    <div class="welcome">
-      <div class="icon">👋</div>
-      <h2>Hola de nuevo</h2>
-      <p>Pulsa el botón para abrir <b>${escapeHtml(name)}</b>. El navegador necesita tu confirmación una vez por seguridad.</p>
-      <button class="btn btn-primary" onclick="continueWithPendingHandle()">Continuar con ${escapeHtml(name)}</button>
-      <p style="margin-top:18px"><a onclick="pickFolder()" style="color:var(--text-soft);font-size:13px;cursor:pointer;text-decoration:underline">Seleccionar otra carpeta</a></p>
-    </div>
-  `;
+async function doAuth(mode) {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  errEl.style.display = 'none';
+  if (!email) { errEl.textContent = 'Pon tu email'; errEl.style.display = 'block'; return; }
+  try {
+    if (mode === 'signin') {
+      if (!password) throw new Error('Pon tu contraseña');
+      await fbSignIn(email, password);
+    } else if (mode === 'signup') {
+      if (!password || password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres');
+      await fbSignUp(email, password);
+      showToast('Cuenta creada. Ya puedes usar la app.');
+    } else if (mode === 'reset') {
+      await fbResetPassword(email);
+      showToast('Te hemos enviado un email para restablecer la contraseña.');
+    }
+  } catch (err) {
+    let msg = err.message || 'Error de autenticación';
+    if (msg.includes('invalid-credential')) msg = 'Email o contraseña incorrectos';
+    else if (msg.includes('email-already-in-use')) msg = 'Ese email ya tiene cuenta. Prueba iniciar sesión.';
+    else if (msg.includes('weak-password')) msg = 'La contraseña es muy débil (mínimo 6 caracteres)';
+    else if (msg.includes('invalid-email')) msg = 'Email inválido';
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+  }
 }
 
 /* =====================================================
@@ -1561,8 +1525,7 @@ async function submitNewTrip() {
   await loadTrips();
   closeModal();
   showToast('Viaje creado');
-  // Abrir directamente el nuevo viaje
-  const created = allTrips.find(t => t.folder.name === newTrip.folder.name);
+  const created = allTrips.find(t => t.id === newTrip.id);
   if (created) openTrip(created);
 }
 
@@ -2262,16 +2225,14 @@ async function deleteEvent(eventId, fromModal) {
   const idx = currentTrip.data.events.findIndex(e => e.id === eventId);
   if (idx < 0) return;
   const ev = currentTrip.data.events[idx];
-  // Borrar archivos físicos de adjuntos
+  // Borrar adjuntos del evento en Firestore
   if (ev.attachments?.length) {
-    try {
-      const folder = await currentTrip.folder.getDirectoryHandle('adjuntos');
-      for (const a of ev.attachments) {
-        if (a.filename) {
-          try { await folder.removeEntry(a.filename); } catch (_e) {}
-        }
+    const { deleteDoc, doc, db } = window.FB;
+    for (const a of ev.attachments) {
+      if (a.attId) {
+        try { await deleteDoc(doc(db, 'users', currentUser.uid, 'attachments', a.attId)); } catch (_e) {}
       }
-    } catch (_e) {}
+    }
   }
   currentTrip.data.events.splice(idx, 1);
   await saveCurrentTrip();
@@ -2307,49 +2268,70 @@ async function addAttachments(e) {
   const files = e.target.files;
   if (!files?.length) return;
   if (!editingEvent.attachments) editingEvent.attachments = [];
-  const TOO_BIG = 20 * 1024 * 1024; // 20 MB por archivo
-  const attachFolder = await currentTrip.folder.getDirectoryHandle('adjuntos', { create: true });
+  const TOO_BIG = 950 * 1024; // 950 KB (límite Firestore ~1 MiB)
   for (const file of files) {
     if (file.size > TOO_BIG) {
-      showToast(`"${file.name}" es muy grande (${formatBytes(file.size)}). Máximo 20 MB.`, 'error');
+      showToast(`"${file.name}" es muy grande (${formatBytes(file.size)}). Máximo 950 KB.`, 'error');
       continue;
     }
-    // Nombre seguro y único en disco
-    const safeName = (editingEvent.id + '_' + file.name).replace(/[\\\/:*?"<>|]/g, '_').substring(0, 200);
-    const fh = await attachFolder.getFileHandle(safeName, { create: true });
-    const w = await fh.createWritable();
-    await w.write(file);
-    await w.close();
-    editingEvent.attachments.push({
-      name: file.name,
-      mime: file.type || 'application/octet-stream',
-      size: file.size,
-      filename: safeName
-    });
+    try {
+      await uploadAttachment(file);
+    } catch (err) {
+      console.error(err);
+      showToast('Error subiendo: ' + err.message, 'error');
+    }
   }
   renderEventModal();
+}
+
+async function uploadAttachment(file) {
+  const { setDoc, doc, db, serverTimestamp } = window.FB;
+  const data = await fileToBase64(file);
+  const attId = 'att-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+  await setDoc(doc(db, 'users', currentUser.uid, 'attachments', attId), {
+    name: file.name,
+    mime: file.type || 'application/octet-stream',
+    size: file.size,
+    data: data,
+    _created: serverTimestamp()
+  });
+  if (!editingEvent.attachments) editingEvent.attachments = [];
+  editingEvent.attachments.push({
+    attId: attId,
+    name: file.name,
+    mime: file.type || 'application/octet-stream',
+    size: file.size
+  });
 }
 
 async function removeAttachment(idx) {
   if (!editingEvent.attachments) return;
   const removed = editingEvent.attachments.splice(idx, 1)[0];
-  if (removed && removed.filename) {
+  if (removed && removed.attId) {
     try {
-      const folder = await currentTrip.folder.getDirectoryHandle('adjuntos');
-      await folder.removeEntry(removed.filename);
+      const { deleteDoc, doc, db } = window.FB;
+      await deleteDoc(doc(db, 'users', currentUser.uid, 'attachments', removed.attId));
     } catch (_e) {}
   }
   renderEventModal();
 }
 
 async function getAttachmentBlob(a) {
-  if (a.filename) {
-    const folder = await currentTrip.folder.getDirectoryHandle('adjuntos');
-    const fh = await folder.getFileHandle(a.filename);
-    return await fh.getFile();
+  // Nuevo: cargar de Firestore por attId
+  if (a.attId) {
+    const { getDoc, doc, db } = window.FB;
+    const snap = await getDoc(doc(db, 'users', currentUser.uid, 'attachments', a.attId));
+    if (snap.exists()) {
+      const d = snap.data();
+      const byteChars = atob(d.data);
+      const bytes = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+      return new Blob([bytes], { type: d.mime || 'application/octet-stream' });
+    }
+    return null;
   }
+  // Compat legacy
   if (a.data) {
-    // Compat con formato antiguo (base64 en JSON)
     const byteChars = atob(a.data);
     const bytes = new Uint8Array(byteChars.length);
     for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
@@ -2534,23 +2516,12 @@ async function fetchCivitatisDuration(url) {
 }
 
 async function attachOneFile(file) {
-  if (file.size > 20 * 1024 * 1024) {
-    showToast(`"${file.name}" es muy grande (${formatBytes(file.size)}). Máximo 20 MB.`, 'error');
+  const TOO_BIG = 950 * 1024;
+  if (file.size > TOO_BIG) {
+    showToast(`"${file.name}" es muy grande (${formatBytes(file.size)}). Máximo 950 KB.`, 'error');
     return;
   }
-  const attachFolder = await currentTrip.folder.getDirectoryHandle('adjuntos', { create: true });
-  const safeName = (editingEvent.id + '_' + file.name).replace(/[\\\/:*?"<>|]/g, '_').substring(0, 200);
-  const fh = await attachFolder.getFileHandle(safeName, { create: true });
-  const w = await fh.createWritable();
-  await w.write(file);
-  await w.close();
-  if (!editingEvent.attachments) editingEvent.attachments = [];
-  editingEvent.attachments.push({
-    name: file.name,
-    mime: file.type || 'application/pdf',
-    size: file.size,
-    filename: safeName
-  });
+  await uploadAttachment(file);
 }
 
 function parseIberia(txt) {
@@ -3100,17 +3071,18 @@ async function exportHTML(slug) {
   // Pre-cargar todos los adjuntos como base64 (lee del disco si están en /adjuntos/)
   async function loadBase64(a) {
     if (a.data) return a.data;
-    if (a.filename) {
+    // Nuevo: attId de Firestore
+    if (a.attId) {
       try {
-        const folder = await currentTrip.folder.getDirectoryHandle('adjuntos');
-        const fh = await folder.getFileHandle(a.filename);
-        const file = await fh.getFile();
-        return await fileToBase64(file);
+        const { getDoc, doc, db } = window.FB;
+        const snap = await getDoc(doc(db, 'users', currentUser.uid, 'attachments', a.attId));
+        if (snap.exists()) return snap.data().data;
       } catch (e) {
-        console.warn('Adjunto no encontrado:', a.filename);
-        return null;
+        console.warn('Adjunto no encontrado:', a.attId, e);
       }
+      return null;
     }
+    if (a.filename) return null; // legacy no soportado en Firestore
     return null;
   }
   // Cargar base64 de cada adjunto y guardarlo en _b64 temporalmente
@@ -3492,10 +3464,8 @@ async function exportICS(slug) {
 }
 
 async function saveBlobToTripFolder(blob, filename) {
-  const handle = await currentTrip.folder.getFileHandle(filename, { create: true });
-  const writable = await handle.createWritable();
-  await writable.write(blob);
-  await writable.close();
+  // Firebase mode: no hay carpeta local. La descarga al navegador ya la disparan los exports.
+  // Función mantenida como no-op para compatibilidad.
 }
 
 /* MODAL HELPERS */
@@ -3838,40 +3808,28 @@ function showToast(msg, kind) {
 
 /* INICIO */
 async function init() {
-  try {
-    if (!('showDirectoryPicker' in window)) {
-      document.getElementById('app').innerHTML = `
-        <div class="welcome">
-          <div class="icon">⚠️</div>
-          <h2>Navegador no compatible</h2>
-          <p>Esta app necesita un navegador con File System Access API. Por favor, ábrela en <b>Chrome</b>, <b>Edge</b> o <b>Brave</b>.</p>
-        </div>
-      `;
-      return;
-    }
-    const restored = await tryRestoreFolder();
-    if (restored) {
-      renderTripsList();
-    } else if (pendingHandle) {
-      renderContinuePrompt();
+  // Esperar a que Firebase esté listo
+  if (!window.FB) {
+    await new Promise(r => window.addEventListener('firebase-ready', r, { once: true }));
+  }
+  const { onAuthStateChanged } = window.FB;
+  onAuthStateChanged(window.FB.auth, async (user) => {
+    currentUser = user;
+    updateFolderInfo();
+    if (user) {
+      try {
+        await loadTrips();
+        renderTripsList();
+      } catch (err) {
+        console.error('Error cargando viajes:', err);
+        showToast('Error cargando viajes: ' + err.message, 'error');
+      }
     } else {
+      currentTrip = null;
+      allTrips = [];
       renderWelcome();
     }
-    updateFolderInfo();
-  } catch (err) {
-    console.error('init() falló:', err);
-    try { renderWelcome(); } catch (_) {
-      document.getElementById('app').innerHTML = `
-        <div class="welcome">
-          <div class="icon">⚠️</div>
-          <h2>Error al iniciar</h2>
-          <p>Algo falló al cargar la app. Recarga con Ctrl+Shift+R o abre las herramientas del navegador (F12) para ver el error.</p>
-          <p style="font-size:12px;color:#94a3b8;margin-top:12px">${String(err.message || err)}</p>
-        </div>
-      `;
-    }
-    try { updateFolderInfo(); } catch (_) {}
-  }
+  });
 }
 
 window.addEventListener('keydown', (e) => {
